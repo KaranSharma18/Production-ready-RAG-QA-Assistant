@@ -5,6 +5,7 @@ import redis_cache
 import vector_store
 import document_loader  
 import uuid
+import llm
 
 app = FastAPI()
 
@@ -45,6 +46,9 @@ async def query_llm(request: QueryRequest):
     session_data = redis_cache.get_session(session_id)
     if not session_data:
         return {"error": "Session expired. Please re-upload your files."}
+    
+    # Retrieve past chat history
+    chat_history = redis_cache.get_chat_history(session_id)  
 
     # Retrieve relevant document chunks
     relevant_chunks = vector_store.retrieve_embeddings(session_id, query)
@@ -52,14 +56,34 @@ async def query_llm(request: QueryRequest):
     context = relevant_chunks if relevant_chunks else ["No relevant documents found, but answering based on general knowledge."]
 
     # Generate response from LLaMA model
-    response = llm.generate_response(query, context)
+    response = llm.generate_response(query, context, chat_history)
+
+    # Save chat history
+    redis_cache.save_chat_history(session_id, query, response)
     
     return {"response": response}
 
+# Define request model
+class ChatHistoryRequest(BaseModel):
+    session_id: str
+
+@app.post("/chat_history/")
+async def fetch_chat_history(request: ChatHistoryRequest):
+    """Retrieve chat history for a session."""
+    session_id = request.session_id  # Extract session_id from JSON request
+
+    chat_history = redis_cache.get_chat_history(session_id)
+
+    if not chat_history:
+        return {"chat_history": []}  # Return empty list if no chat history
+
+    return {"chat_history": chat_history}
+
 @app.post("/cleanup/")
-async def cleanup_session(session_id: str):
+async def cleanup_session(request: ChatHistoryRequest):
     """Deletes session data and removes related embeddings from Pinecone."""
+
+    session_id = request.session_id  # Extract session_id from JSON request
     redis_cache.delete_session(session_id)  # Cleanup session data
     
     return {"message": f"Session {session_id} cleaned up"}
-

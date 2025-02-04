@@ -22,7 +22,20 @@ def get_session(session_id):
 def delete_session(session_id):
     """Remove session from Redis and trigger embedding cleanup in Pinecone."""
     redis_client.delete(session_id)
+    redis_client.delete(f"{session_id}:chat")  # Delete chat history from Redis
     delete_session_embeddings(session_id)  # Cleanup embeddings
+
+def get_chat_history(session_id):
+    """Retrieve chat history from Redis."""
+    chat_key = f"{session_id}:chat"
+    return redis_client.lrange(chat_key, 0, -1)  # Fetch all chat messages from Redis list
+
+def save_chat_history(session_id, question, answer):
+    """Store chat history in Redis and set expiration."""
+    chat_key = f"{session_id}:chat"
+    chat_entry = json.dumps({"question": question, "answer": answer})
+    redis_client.rpush(chat_key, chat_entry)  # Append new chat entry to Redis list
+    redis_client.expire(chat_key, 1800)  
 
 def redis_key_expiry_listener():
     """Continuously listen for session expiration events and clean up embeddings."""
