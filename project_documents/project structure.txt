@@ -1,0 +1,21 @@
+rag-chat-app/
+│── backend/             # FastAPI backend
+│   ├── main.py          # FastAPI app entry point
+│   ├── llm.py           # LLaMA inference logic
+│   ├── vector_store.py  # Pinecone integration
+│   ├── document_loader.py # PDF, DOCX processing
+│   ├── redis_cache.py   # Redis session management
+│   ├── requirements.txt # Backend dependencies
+│── frontend/            # Streamlit frontend
+│   ├── app.py           # Streamlit UI
+│   ├── requirements.txt # Frontend dependencies
+│── Dockerfile           # Docker config
+│── docker-compose.yml   # Docker Compose setup
+│── .gitignore           # Ignored files
+│── README.md            # Project documentation
+│── k8s/                 # Kubernetes configs
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── ingress.yaml
+│── ci-cd/               # CI/CD pipeline
+│   ├── github-actions.yml

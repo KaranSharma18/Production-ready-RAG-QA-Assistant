@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pypdf2
+python-docx
+sentence-transformers
+pinecone-client
+redis
+ray[serve]
+vllm

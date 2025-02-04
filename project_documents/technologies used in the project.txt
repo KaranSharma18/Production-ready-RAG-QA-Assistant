@@ -1,0 +1,19 @@
+
+Building a Production-Ready RAG LLM Web App
+We will implement a Retrieval-Augmented Generation (RAG) pipeline, with a scalable backend (FastAPI), a conversational frontend (Streamlit), and a vector database (Pinecone) for embeddings. Our design will be stateless, ensuring uploaded files and conversations are temporary.
+
+🚀 Technologies Used
+Frontend
+Streamlit (for a ChatGPT-like interface)
+Session Management (Handles ephemeral chat sessions)
+Backend
+FastAPI (for handling requests, processing documents)
+Redis (for ephemeral session management)
+Pinecone (for storing embeddings)
+LLaMA (via Ollama) (for LLM inference)
+Ray Serve (for scalable inference)
+PyPDF2 & python-docx (for document processing)
+Infrastructure & Scalability
+Docker (for containerization)
+Kubernetes (AWS EKS) (for scalable deployment)
+CI/CD (GitHub Actions) (for automated deployment)
