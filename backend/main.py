@@ -45,7 +45,8 @@ async def query_llm(request: QueryRequest):
 
     session_data = redis_cache.get_session(session_id)
     if not session_data:
-        return {"error": "Session expired. Please re-upload your files."}
+        # Save session in Redis
+        redis_cache.save_session(session_id, [])
     
     # Retrieve past chat history
     chat_history = redis_cache.get_chat_history(session_id)  
