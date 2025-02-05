@@ -3,42 +3,89 @@ import requests
 import uuid
 import json
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
+from datetime import datetime
+from http import HTTPStatus
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('app.log')
+    ]
+)
 logger = logging.getLogger(__name__)
 
+class APIError(Exception):
+    """Custom exception for API-related errors."""
+    def __init__(self, message: str, status_code: int = None):
+        self.message = message
+        self.status_code = status_code
+        super().__init__(self.message)
+
 class DocumentChatApp:
-    def __init__(self, backend_url: str = "http://localhost:8000"):
+    def __init__(self, backend_url: str = "http://localhost:8000", timeout: int = 30):
         """
         Initialize the Streamlit document chat application.
         
         Args:
             backend_url (str): Base URL for the backend API
+            timeout (int): Request timeout in seconds
         """
-        self.BACKEND_URL = backend_url
+        self.BACKEND_URL = backend_url.rstrip('/')
+        self.TIMEOUT = timeout
+        self.SUPPORTED_FORMATS = ["pdf", "docx", "txt"]
         self._initialize_session_state()
 
-    def _initialize_session_state(self):
+    def _make_api_request(
+        self, 
+        endpoint: str, 
+        method: str = "POST", 
+        **kwargs
+    ) -> Tuple[Dict, int]:
         """
-        Initialize or reset session state variables.
+        Make an API request with error handling.
+        
+        Args:
+            endpoint (str): API endpoint
+            method (str): HTTP method
+            **kwargs: Additional request parameters
+        
+        Returns:
+            Tuple[Dict, int]: (Response data, status code)
+        
+        Raises:
+            APIError: If the request fails
         """
-        if "session_id" not in st.session_state:
-            st.session_state["session_id"] = str(uuid.uuid4())
-        
-        # Initialize other session state variables with default values
-        session_state_defaults = {
-            "answer": "",
-            "query": "",
-            "last_query": "",  # Add this new state variable
-            "uploaded_files": [],
-            "error": None
-        }
-        
-        for key, default_value in session_state_defaults.items():
-            if key not in st.session_state:
-                st.session_state[key] = default_value
+        try:
+            url = f"{self.BACKEND_URL}/{endpoint.lstrip('/')}"
+            kwargs.setdefault('timeout', self.TIMEOUT)
+            
+            response = requests.request(method, url, **kwargs)
+            
+            if response.status_code == HTTPStatus.OK:
+                return response.json(), response.status_code
+            
+            error_msg = f"API request failed: {response.text}"
+            logger.error(error_msg)
+            raise APIError(error_msg, response.status_code)
+            
+        except requests.Timeout:
+            error_msg = f"Request to {endpoint} timed out after {self.TIMEOUT}s"
+            logger.error(error_msg)
+            raise APIError(error_msg)
+            
+        except requests.ConnectionError:
+            error_msg = f"Cannot connect to backend server at {self.BACKEND_URL}"
+            logger.error(error_msg)
+            raise APIError(error_msg)
+            
+        except requests.RequestException as e:
+            error_msg = f"Request failed: {str(e)}"
+            logger.error(error_msg)
+            raise APIError(error_msg)
 
     def upload_files(self, uploaded_files: List) -> bool:
         """
@@ -51,22 +98,26 @@ class DocumentChatApp:
             bool: True if upload successful, False otherwise
         """
         try:
+            if not uploaded_files:
+                return False
+
             file_data = [("files", (file.name, file.getvalue())) for file in uploaded_files]
-            response = requests.post(
-                f"{self.BACKEND_URL}/upload/", 
-                files=file_data, 
+            
+            _, status_code = self._make_api_request(
+                'upload/',
+                files=file_data,
                 data={"session_id": st.session_state["session_id"]}
             )
             
-            if response.status_code == 200:
+            if status_code == HTTPStatus.OK:
                 st.success("Files uploaded successfully!")
                 st.session_state["uploaded_files"] = uploaded_files
                 return True
-            else:
-                st.error(f"Failed to upload files. Error: {response.text}")
-                return False
-        except requests.RequestException as e:
-            st.error(f"Network error during file upload: {e}")
+                
+            return False
+            
+        except APIError as e:
+            st.error(e.message)
             return False
 
     def get_chat_history(self) -> List[Dict]:
@@ -77,135 +128,206 @@ class DocumentChatApp:
             List[Dict]: List of chat history entries
         """
         try:
-            response = requests.post(
-                f"{self.BACKEND_URL}/chat_history/", 
+            data, _ = self._make_api_request(
+                'chat_history/',
                 json={"session_id": st.session_state["session_id"]}
             )
+            return data.get("chat_history", [])
             
-            if response.status_code == 200:
-                return response.json().get("chat_history", [])
-            return []
-        except requests.RequestException as e:
+        except APIError as e:
             logger.error(f"Error fetching chat history: {e}")
             return []
 
     def submit_query(self, query: str) -> Optional[str]:
         """
-        Submit a query to the backend.
+        Submit a query to the backend and update chat history immediately.
         
         Args:
-            query (str): User's query
-        
+            query (str): User query
+            
         Returns:
-            Optional[str]: Response from backend or None
+            Optional[str]: Response text if successful, None otherwise
         """
         try:
-            response = requests.post(
-                f"{self.BACKEND_URL}/query/",
+            data, _ = self._make_api_request(
+                'query/',
                 json={
-                    "session_id": st.session_state["session_id"], 
+                    "session_id": st.session_state["session_id"],
                     "query": query
                 },
-                headers={"Content-Type": "application/json"},
-                timeout=30  # Add a timeout to prevent hanging
+                headers={"Content-Type": "application/json"}
             )
             
-            if response.status_code == 200:
-                response_data = response.json()
-                if "error" in response_data:
-                    st.error(response_data["error"])
-                    return None
-                return response_data.get("response", "No response received.")
-            else:
-                st.error("Session expired. Please re-upload files.")
+            if "error" in data:
+                st.error(data["error"])
                 return None
-        except requests.RequestException as e:
-            st.error(f"Network error during query submission: {e}")
+            
+            response_text = data.get("response", "No response received.")
+            self._update_chat_history(query, response_text)
+            return response_text
+            
+        except APIError as e:
+            st.error(e.message)
             return None
 
-    def end_session(self):
+    def _update_chat_history(self, question: str, answer: str):
         """
-        End the current session and reset session state.
-        """
-        try:
-            requests.post(
-                f"{self.BACKEND_URL}/cleanup/", 
-                json={"session_id": st.session_state["session_id"]}
-            )
-        except requests.RequestException as e:
-            logger.warning(f"Error during session cleanup: {e}")
+        Update session state with new chat message.
         
-        # Reset session state
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        self._initialize_session_state()
-        st.rerun()  # Only rerun after completely clearing the session
+        Args:
+            question (str): User question
+            answer (str): Bot answer
+        """
+        if "chat_messages" not in st.session_state:
+            st.session_state.chat_messages = []
+        
+        st.session_state.chat_messages.append({
+            "question": question,
+            "answer": answer,
+            "timestamp": datetime.now().isoformat()
+        })
 
     def render_chat_history(self):
-        """
-        Render the chat history in the Streamlit app.
-        """
+        """Render the chat history in the Streamlit app."""
         st.subheader("Chat History")
-        chat_container = st.container()
-
-        with chat_container:
-            chat_history = self.get_chat_history()
+        
+        if not st.session_state.get('chat_messages') and not self.get_chat_history():
+            st.markdown("*No chat history yet.*")
+            return
             
-            if chat_history:
-                for chat in chat_history:
-                    try:
-                        chat_data = json.loads(chat)
-                        st.markdown(f"**You:** {chat_data['question']}")
-                        st.markdown(f"**Bot:** {chat_data['answer']}")
+        chat_container = st.container()
+        
+        with chat_container:
+            # First show older messages from backend
+            for chat in self.get_chat_history():
+                try:
+                    chat_data = json.loads(chat)
+                    if not any(m['question'] == chat_data['question'] 
+                            for m in st.session_state.get('chat_messages', [])):
+                        with st.container():
+                            st.markdown(f"**You:** {chat_data['question']}")
+                            st.markdown(f"**Bot:** {chat_data['answer']}")
+                            st.markdown("---")
+                except (json.JSONDecodeError, KeyError) as e:
+                    logger.error(f"Error parsing chat history: {e}")
+            
+            # Then show current session messages in chronological order
+            if st.session_state.get('chat_messages'):
+                for chat in st.session_state.chat_messages:  # Removed reversed()
+                    with st.container():
+                        st.markdown(f"**You:** {chat['question']}")
+                        st.markdown(f"**Bot:** {chat['answer']}")
                         st.markdown("---")
-                    except (json.JSONDecodeError, KeyError) as e:
-                        logger.error(f"Error parsing chat history: {e}")
-            else:
-                st.markdown("*No chat history yet.*")
+
+    def end_session(self):
+        """End the current session and reset session state."""
+        try:
+            self._make_api_request(
+                'cleanup/',
+                json={"session_id": st.session_state["session_id"]}
+            )
+        except APIError as e:
+            logger.warning(f"Error during session cleanup: {e}")
+        finally:
+            # Reset session state
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            self._initialize_session_state()
+            st.rerun()
+
+    def _initialize_session_state(self):
+        """Initialize or reset session state variables."""
+        if "session_id" not in st.session_state:
+            st.session_state["session_id"] = str(uuid.uuid4())
+        
+        session_state_defaults = {
+            "answer": "",
+            "query": "",
+            "last_query": "",
+            "uploaded_files": [],
+            "error": None,
+            "chat_messages": [],
+            "input_key": 0  # Add this line
+        }
+        
+        for key, default_value in session_state_defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = default_value
 
     def run(self):
-        """
-        Main method to run the Streamlit application.
-        """
-        st.set_page_config(page_title="Chat with Documents", layout="wide")
-        st.title("Chat with Documents")
-
-        # File uploader
-        uploaded_files = st.file_uploader(
-            "Upload PDFs, DOCX, or TXT files",
-            type=["pdf", "docx", "txt"],
-            accept_multiple_files=True
+        """Main method to run the Streamlit application."""
+        st.set_page_config(
+            page_title="Chat with Documents",
+            layout="wide",
+            initial_sidebar_state="expanded"
         )
-
-        if uploaded_files and uploaded_files != st.session_state["uploaded_files"]:
-            self.upload_files(uploaded_files)
-
-        # Render chat history
-        self.render_chat_history()
-
-        # User query input with unique key to prevent re-rendering
-        query = st.text_input("Ask a question", key="user_query")
-
-        # Process query only if it's new
-        if query and query != st.session_state.get("last_query"):
-            response = self.submit_query(query)
+        
+        st.title("Chat with Documents")
+        
+        # File upload section
+        with st.expander("📁 Upload Documents (Optional)"):
+            st.markdown(f"""
+            You can upload documents to get contextual responses, or just chat without documents.
+            Supported formats: {', '.join(self.SUPPORTED_FORMATS)}
+            """)
             
-            if response:
-                st.session_state["answer"] = response
-                st.session_state["last_query"] = query  # Store the last processed query
+            uploaded_files = st.file_uploader(
+                "Upload files",
+                type=self.SUPPORTED_FORMATS,
+                accept_multiple_files=True
+            )
 
-        # Display the latest answer
-        if st.session_state.get("answer"):
-            st.subheader("Response")
-            st.write(st.session_state["answer"])
+            if uploaded_files and uploaded_files != st.session_state["uploaded_files"]:
+                self.upload_files(uploaded_files)
 
-        # End session button
+        # Chat interface
+        st.markdown("### Chat")
+        if st.session_state.get("uploaded_files"):
+            st.info(f"Chatting with {len(st.session_state['uploaded_files'])} uploaded documents")
+        else:
+            st.info("Chat without documents - responses will be based on general knowledge")
+
+        # Chat container for history
+        chat_container = st.container()
+        with chat_container:
+            self.render_chat_history()
+
+        # Input container for user interaction
+        input_container = st.container()
+        
+        # Initialize the key for text input if not present
+        if "input_key" not in st.session_state:
+            st.session_state.input_key = 0
+
+        with input_container:
+            # Use a unique key for each text input instance
+            user_input = st.text_input(
+                "Ask a question",
+                key=f"text_input_{st.session_state.input_key}"
+            )
+            
+            if user_input and user_input != st.session_state.get("last_query"):
+                with st.spinner('Processing your question...'):
+                    response = self.submit_query(user_input)
+                    
+                    if response:
+                        st.session_state["last_query"] = user_input
+                        # Increment the key to create a new text input in the next rerun
+                        st.session_state.input_key += 1
+                        st.rerun()
+
+        # Session control
         if st.button("End Session"):
             self.end_session()
 
 def main():
-    app = DocumentChatApp()
-    app.run()
+    """Main entry point for the application."""
+    try:
+        app = DocumentChatApp()
+        app.run()
+    except Exception as e:
+        logger.exception("Application failed to start")
+        st.error("An unexpected error occurred. Please try again later.")
 
 if __name__ == "__main__":
     main()
