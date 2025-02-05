@@ -16,10 +16,11 @@ class LLMConfig:
     model_name: str = "deepseek-r1:1.5b"
     history_limit: int = 15          # Increased to keep more conversation context
     max_context_length: int = 97304  # ~75% of 128K tokens for context (reserves space for system prompt and response)
-    max_chunk_length: int = 2048     # Increased chunk size for more comprehensive context per chunk
     default_context: str = "No specific context found. I'll answer based on my general knowledge."
     temperature: float = 0.7
     retry_attempts: int = 3
+    min_retry_wait: int = 4
+    max_retry_wait: int = 10
     system_prompt_tokens: int = 1000  # Estimated tokens for system prompt
     max_history_tokens: int = 16384  # ~16K tokens reserved for chat history
     max_response_tokens: int = 8192  # Maximum expected response length
@@ -31,12 +32,13 @@ class LLMConfig:
             model_name=os.getenv('LLM_MODEL_NAME', "deepseek-r1:1.5b"),
             history_limit=int(os.getenv('LLM_HISTORY_LIMIT', 5)),
             max_context_length=int(os.getenv('LLM_MAX_CONTEXT_LENGTH', 97304)),
-            max_chunk_length=int(os.getenv('LLM_MAX_CHUNK_LENGTH', 2048)),
             system_prompt_tokens=int(os.getenv('LLM_SYSTEM_PROMPT_TOKENS', 1000)),
             max_history_tokens=int(os.getenv('LLM_MAX_HISTORY_TOKENS', 16384)),
             max_response_tokens=int(os.getenv('LLM_MAX_RESPONSE_TOKENS', 8192)),
             temperature=float(os.getenv('LLM_TEMPERATURE', 0.7)),
-            retry_attempts=int(os.getenv('LLM_RETRY_ATTEMPTS', 3))
+            retry_attempts=int(os.getenv('LLM_RETRY_ATTEMPTS', 3)),
+            min_retry_wait=int(os.getenv('MIN_RETRY_WAIT', 4)),
+            max_retry_wait=int(os.getenv('MAX_RETRY_WAIT', 10))
         )
 
 class LLMError(Exception):
@@ -75,7 +77,7 @@ class PromptBuilder:
             return self.config.default_context
             
         # Simple truncation strategy - could be improved with smarter chunking
-        return context[:self.config.max_chunk_length]
+        return context[:self.config.max_context_length]
 
     def build_prompt(self, query: str, context: Union[List[str], str], 
                     chat_history: Optional[List[str]] = None) -> str:
@@ -110,12 +112,9 @@ class LLMService:
     def __init__(self, config: Optional[LLMConfig] = None):
         self.config = config or LLMConfig.from_env()
         self.prompt_builder = PromptBuilder(self.config)
-        
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        reraise=True
-    )
+        # Create retry decorator once during initialization
+        self.retry_decorator = self._create_retry_decorator()
+
     def _call_llm(self, prompt: str) -> str:
         """Make the actual LLM API call with retry logic"""
         try:
@@ -127,6 +126,22 @@ class LLMService:
         except Exception as e:
             logger.error(f"Error calling LLM: {e}")
             raise LLMError(f"Failed to generate response: {str(e)}")
+    
+    def _create_retry_decorator(self):
+        """Create a retry decorator with the instance's config"""
+        return retry(
+            stop=stop_after_attempt(self.config.retry_attempts),
+            wait=wait_exponential(
+                multiplier=1,
+                min=self.config.min_retry_wait,
+                max=self.config.max_retry_wait
+            ),
+            reraise=True
+        )
+    
+    def call_llm_with_retry(self, prompt: str) -> str:
+        """Method that applies retry decorator to LLM call"""
+        return self.retry_decorator(self._call_llm)(prompt)
 
     def generate_response(
         self,
@@ -157,7 +172,7 @@ class LLMService:
                 chat_history=chat_history
             )
             
-            response = self._call_llm(prompt)
+            response = self.call_llm_with_retry(prompt)
             
             logger.info(f"Successfully generated response for query: {query[:100]}")
             return response
