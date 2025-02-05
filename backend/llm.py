@@ -122,7 +122,6 @@ class LLMService:
             response = ollama.chat(
                 model=self.config.model_name,
                 messages=[{"role": "system", "content": prompt, "temperature": self.config.temperature}]
-                # temperature=self.config.temperature,
             )
             return response["message"]["content"]
         except Exception as e:
