@@ -62,5 +62,13 @@ def retrieve_embeddings(session_id, query, top_k=5):
 
 def delete_session_embeddings(session_id):
     """Delete all embeddings related to a session when it expires."""
-    index.delete(filter={"session_id": session_id})
-    print(f"Deleted embeddings for session: {session_id}")
+    try:
+        for ids in index.list(prefix=session_id):
+            print('ids', ids)
+            index.delete(ids=ids)
+        print(f"Successfully deleted vectors for session: {session_id}")
+        return True
+            
+    except Exception as e:
+        print(f"Error in delete_session_embeddings: {str(e)}")
+        raise

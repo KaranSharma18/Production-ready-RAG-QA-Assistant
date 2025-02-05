@@ -27,7 +27,7 @@ class APIError(Exception):
         super().__init__(self.message)
 
 class DocumentChatApp:
-    def __init__(self, backend_url: str = "http://localhost:8000", timeout: int = 60):
+    def __init__(self, backend_url: str = "http://localhost:8000", timeout: int = 120):
         """
         Initialize the Streamlit document chat application.
         

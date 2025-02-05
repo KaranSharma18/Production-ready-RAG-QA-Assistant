@@ -5,7 +5,7 @@ import redis_cache
 import vector_store
 import document_loader  
 import uuid
-from llm import LLMService
+from llm import get_llm_service
 
 app = FastAPI()
 
@@ -57,12 +57,12 @@ async def query_llm(request: QueryRequest):
     context = relevant_chunks if relevant_chunks else None
 
     # Generate response from model
-    llm_service = LLMService(config=None)
-    response = llm_service.generate_response(
-        query=query,
-        context=context,
-        chat_history=chat_history
-    )
+    async with get_llm_service() as llm_service:
+        response = await llm_service.generate_response(
+            query=query,
+            context=context,
+            chat_history=chat_history
+        )
 
     # Save chat history
     redis_cache.save_chat_history(session_id, query, response)

@@ -5,3 +5,4 @@ __pycache__/
 *.pyo
 *.pyd
 frontend/app.log
+backend/logs/
