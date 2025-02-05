@@ -5,7 +5,7 @@ import redis_cache
 import vector_store
 import document_loader  
 import uuid
-import llm
+from llm import LLMService
 
 app = FastAPI()
 
@@ -54,10 +54,15 @@ async def query_llm(request: QueryRequest):
     # Retrieve relevant document chunks
     relevant_chunks = vector_store.retrieve_embeddings(session_id, query)
 
-    context = relevant_chunks if relevant_chunks else ["No relevant documents found, but answering based on general knowledge."]
+    context = relevant_chunks if relevant_chunks else None
 
-    # Generate response from LLaMA model
-    response = llm.generate_response(query, context, chat_history)
+    # Generate response from model
+    llm_service = LLMService(config=None)
+    response = llm_service.generate_response(
+        query=query,
+        context=context,
+        chat_history=chat_history
+    )
 
     # Save chat history
     redis_cache.save_chat_history(session_id, query, response)

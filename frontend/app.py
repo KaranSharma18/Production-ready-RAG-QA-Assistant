@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import requests
 import uuid
@@ -323,7 +324,10 @@ class DocumentChatApp:
 def main():
     """Main entry point for the application."""
     try:
-        app = DocumentChatApp()
+        backend_url = os.getenv("BACKEND_URL")
+        app = DocumentChatApp(
+            backend_url=backend_url
+        )
         app.run()
     except Exception as e:
         logger.exception("Application failed to start")
