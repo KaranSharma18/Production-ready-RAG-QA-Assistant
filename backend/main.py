@@ -123,6 +123,18 @@ async def add_process_time_header(request: Request, call_next):
 async def get_app_settings():
     return get_settings()
 
+@app.on_event("startup")
+async def start_health_monitor():
+    async def monitor():
+        while True:
+            try:
+                health_status = await health_check()
+                await asyncio.sleep(30)
+            except Exception as e:
+                logger.error(f"Health check failed: {e}")
+
+    asyncio.create_task(monitor())
+
 # File upload endpoint with improved error handling and validation
 @app.post(
     "/upload/",
@@ -428,13 +440,44 @@ async def cleanup_session(
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint for monitoring.
-    """
-    return {
+    """Health check endpoint for monitoring."""
+    # Check critical service dependencies
+    health_status = {
         "status": "healthy",
+        "services": {
+            "redis": check_redis_health(),
+            "pinecone": check_pinecone_health(),
+            "llm": check_llm_health()
+        },
         "timestamp": datetime.utcnow().isoformat()
     }
+    
+    # If any service is unhealthy, return 503
+    if not all(health_status["services"].values()):
+        raise HTTPException(status_code=503, detail=health_status)
+        
+    return health_status
+
+def check_redis_health():
+    try:
+        redis_cache.redis_client.ping()
+        return True
+    except:
+        return False
+
+def check_pinecone_health():
+    try:
+        vector_store.index.describe_index_stats()
+        return True
+    except:
+        return False
+
+def check_llm_health():
+    try:
+        "Not adding logic for llm health check as it takes time to perform this llm healtch check, might need to find a better approach"
+        return True 
+    except:
+        return False
 
 # Metrics endpoint for Prometheus
 @app.get("/metrics")

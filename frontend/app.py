@@ -113,46 +113,23 @@ class DocumentChatApp:
                 "timestamp": datetime.utcnow().isoformat()
             }
 
-    def format_metrics(self, metrics_data: str) -> str:
-        """Format metrics data for readable display."""
-        if not metrics_data:
-            return ""
-            
-        formatted_lines = []
-        current_metric = None
-        
-        for line in metrics_data.split('\n'):
-            # Skip empty lines
-            if not line.strip():
-                continue
-                
-            # Handle comments (metadata)
+    def format_metrics(self, raw_metrics: str) -> str:
+        """Format metrics for better display"""
+        formatted = []
+        for line in raw_metrics.split('\n'):
             if line.startswith('# HELP'):
-                current_metric = line.split()[2]
-                formatted_lines.append(f"\n### {current_metric}")
-                formatted_lines.append(line.split('# HELP')[1].strip())
-                
+                metric_name = line.split()[2]
+                description = ' '.join(line.split()[3:])
+                formatted.append(f"\n## {metric_name}")
+                formatted.append(f"Description: {description}")
             elif line.startswith('# TYPE'):
-                formatted_lines.append(f"Type: {line.split()[-1]}\n")
-                
-            # Handle metric values
-            elif line.strip():
-                if current_metric and line.startswith(current_metric):
-                    # Format the metric value line
-                    parts = line.split()
-                    metric_name = parts[0].split('{')[0]
-                    
-                    # Handle labels if present
-                    if '{' in line:
-                        labels = line[line.index('{')+1:line.index('}')]
-                        value = line.split()[-1]
-                        formatted_lines.append(f"- Labels: {labels}")
-                        formatted_lines.append(f"  Value: {value}\n")
-                    else:
-                        value = parts[-1]
-                        formatted_lines.append(f"- Value: {value}\n")
+                metric_type = line.split()[-1]
+                formatted.append(f"Type: {metric_type}\n")
+            elif line and not line.startswith('#'):
+                name, value = line.rsplit(' ', 1)
+                formatted.append(f"- {name}: {value}")
         
-        return '\n'.join(formatted_lines)
+        return '\n'.join(formatted)
 
     def get_metrics(self):
         try:
@@ -162,7 +139,7 @@ class DocumentChatApp:
             )
             
             if response.status_code == HTTPStatus.OK:
-                return response.text
+                return self.format_metrics(response.text)
                 
             st.error(f"Failed to fetch metrics: Status {response.status_code}")
             return None
