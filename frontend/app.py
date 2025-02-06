@@ -113,13 +113,48 @@ class DocumentChatApp:
                 "timestamp": datetime.utcnow().isoformat()
             }
 
-    def get_metrics(self) -> Optional[str]:
-        """
-        Fetch Prometheus metrics from backend.
+    def format_metrics(self, metrics_data: str) -> str:
+        """Format metrics data for readable display."""
+        if not metrics_data:
+            return ""
+            
+        formatted_lines = []
+        current_metric = None
         
-        Returns:
-            Optional[str]: Metrics data if successful, None otherwise
-        """
+        for line in metrics_data.split('\n'):
+            # Skip empty lines
+            if not line.strip():
+                continue
+                
+            # Handle comments (metadata)
+            if line.startswith('# HELP'):
+                current_metric = line.split()[2]
+                formatted_lines.append(f"\n### {current_metric}")
+                formatted_lines.append(line.split('# HELP')[1].strip())
+                
+            elif line.startswith('# TYPE'):
+                formatted_lines.append(f"Type: {line.split()[-1]}\n")
+                
+            # Handle metric values
+            elif line.strip():
+                if current_metric and line.startswith(current_metric):
+                    # Format the metric value line
+                    parts = line.split()
+                    metric_name = parts[0].split('{')[0]
+                    
+                    # Handle labels if present
+                    if '{' in line:
+                        labels = line[line.index('{')+1:line.index('}')]
+                        value = line.split()[-1]
+                        formatted_lines.append(f"- Labels: {labels}")
+                        formatted_lines.append(f"  Value: {value}\n")
+                    else:
+                        value = parts[-1]
+                        formatted_lines.append(f"- Value: {value}\n")
+        
+        return '\n'.join(formatted_lines)
+
+    def get_metrics(self):
         try:
             response = requests.get(
                 f"{self.BACKEND_URL}/metrics",
@@ -129,11 +164,11 @@ class DocumentChatApp:
             if response.status_code == HTTPStatus.OK:
                 return response.text
                 
-            logger.error(f"Failed to fetch metrics: {response.text}")
+            st.error(f"Failed to fetch metrics: Status {response.status_code}")
             return None
             
         except requests.RequestException as e:
-            logger.error(f"Error fetching metrics: {str(e)}")
+            st.error(f"Error fetching metrics: {str(e)}")
             return None
 
     def upload_files(self, uploaded_files: List) -> bool:

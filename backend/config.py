@@ -186,19 +186,19 @@ class Settings(BaseSettings):
 
     # Timeout Settings
     text_extraction_timeout: int = Field(
-        default=30,
+        default=60,
         description="Timeout for text extraction in seconds"
     )
     embedding_timeout: int = Field(
-        default=30,
+        default=60,
         description="Timeout for embedding generation in seconds"
     )
     llm_response_timeout: int = Field(
-        default=60,
+        default=120,
         description="Timeout for LLM response in seconds"
     )
     context_retrieval_timeout: int = Field(
-        default=10,
+        default=30,
         description="Timeout for context retrieval in seconds"
     )
 
