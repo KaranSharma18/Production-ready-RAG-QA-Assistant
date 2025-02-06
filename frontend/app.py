@@ -87,6 +87,54 @@ class DocumentChatApp:
             error_msg = f"Request failed: {str(e)}"
             logger.error(error_msg)
             raise APIError(error_msg)
+    
+    def check_health(self) -> Dict:
+        """
+        Check backend health status.
+        
+        Returns:
+            Dict: Health check response
+        """
+        try:
+            data, status_code = self._make_api_request(
+                'health',
+                method="GET"
+            )
+            return {
+                "status": "healthy" if status_code == HTTPStatus.OK else "unhealthy",
+                "backend_status": data.get("status", "unknown"),
+                "timestamp": data.get("timestamp", datetime.utcnow().isoformat())
+            }
+        except APIError as e:
+            logger.error(f"Health check failed: {e}")
+            return {
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+    def get_metrics(self) -> Optional[str]:
+        """
+        Fetch Prometheus metrics from backend.
+        
+        Returns:
+            Optional[str]: Metrics data if successful, None otherwise
+        """
+        try:
+            response = requests.get(
+                f"{self.BACKEND_URL}/metrics",
+                timeout=self.TIMEOUT
+            )
+            
+            if response.status_code == HTTPStatus.OK:
+                return response.text
+                
+            logger.error(f"Failed to fetch metrics: {response.text}")
+            return None
+            
+        except requests.RequestException as e:
+            logger.error(f"Error fetching metrics: {str(e)}")
+            return None
 
     def upload_files(self, uploaded_files: List) -> bool:
         """
@@ -263,6 +311,34 @@ class DocumentChatApp:
             initial_sidebar_state="expanded"
         )
         
+        # Add system status to sidebar
+        with st.sidebar:
+            st.subheader("System Status")
+            
+            # Health check
+            health_status = self.check_health()
+            if health_status["status"] == "healthy":
+                st.success("Backend: Healthy")
+            else:
+                st.error("Backend: Unhealthy")
+                if "error" in health_status:
+                    st.warning(f"Error: {health_status['error']}")
+            
+            # Last updated timestamp
+            st.caption(f"Last checked: {datetime.fromisoformat(health_status['timestamp']).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            
+            # Add metrics display option
+            if st.checkbox("Show System Metrics"):
+                metrics_data = self.get_metrics()
+                if metrics_data:
+                    with st.expander("System Metrics", expanded=True):
+                        st.text(metrics_data)
+                else:
+                    st.warning("Unable to fetch metrics")
+            
+            # Add divider
+            st.divider()
+        
         st.title("Chat with Documents")
         
         # File upload section
@@ -288,6 +364,18 @@ class DocumentChatApp:
         else:
             st.info("Chat without documents - responses will be based on general knowledge")
 
+        # Add clear chat button and session info
+        col1, col2 = st.columns([6, 4])
+        with col1:
+            if st.session_state.get("chat_messages"):
+                if st.button("Clear Chat History"):
+                    st.session_state.chat_messages = []
+                    st.session_state.last_query = ""
+                    st.session_state.input_key += 1
+                    st.rerun()
+        with col2:
+            st.caption(f"Session ID: {st.session_state['session_id']}")
+
         # Chat container for history
         chat_container = st.container()
         with chat_container:
@@ -295,13 +383,7 @@ class DocumentChatApp:
 
         # Input container for user interaction
         input_container = st.container()
-        
-        # Initialize the key for text input if not present
-        if "input_key" not in st.session_state:
-            st.session_state.input_key = 0
-
         with input_container:
-            # Use a unique key for each text input instance
             user_input = st.text_input(
                 "Ask a question",
                 key=f"text_input_{st.session_state.input_key}"
@@ -313,7 +395,6 @@ class DocumentChatApp:
                     
                     if response:
                         st.session_state["last_query"] = user_input
-                        # Increment the key to create a new text input in the next rerun
                         st.session_state.input_key += 1
                         st.rerun()
 
@@ -324,10 +405,7 @@ class DocumentChatApp:
 def main():
     """Main entry point for the application."""
     try:
-        backend_url = os.getenv("BACKEND_URL")
-        app = DocumentChatApp(
-            backend_url=backend_url
-        )
+        app = DocumentChatApp()
         app.run()
     except Exception as e:
         logger.exception("Application failed to start")

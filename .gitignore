@@ -6,3 +6,4 @@ __pycache__/
 *.pyd
 frontend/app.log
 backend/logs/
+project_documents/*

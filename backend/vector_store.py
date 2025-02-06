@@ -10,7 +10,7 @@ load_dotenv()
 
 # Get Pinecone API key & index name from environment variables
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "document-index")
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "document-index1")
 
 # Load the open-source embedding model (1536-D)
 embedding_model = SentenceTransformer("BAAI/bge-large-en-v1.5")
@@ -64,7 +64,6 @@ def delete_session_embeddings(session_id):
     """Delete all embeddings related to a session when it expires."""
     try:
         for ids in index.list(prefix=session_id):
-            print('ids', ids)
             index.delete(ids=ids)
         print(f"Successfully deleted vectors for session: {session_id}")
         return True
