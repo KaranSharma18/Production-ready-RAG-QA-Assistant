@@ -372,7 +372,7 @@ async def fetch_chat_history(
         
         return {
             "chat_history": chat_history if chat_history else [],
-            "timestamp": datetime.now(datetime.UTC).isoformat()
+            "timestamp": datetime.utcnow().isoformat()
         }
         
     except Exception as e:
