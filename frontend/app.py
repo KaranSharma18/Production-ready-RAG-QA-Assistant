@@ -27,7 +27,7 @@ class APIError(Exception):
         super().__init__(self.message)
 
 class DocumentChatApp:
-    def __init__(self, backend_url: str = "http://localhost:8000", timeout: int = 120):
+    def __init__(self, backend_url: str = "http://backend:8000", timeout: int = 1000):
         """
         Initialize the Streamlit document chat application.
         
@@ -417,7 +417,8 @@ class DocumentChatApp:
 def main():
     """Main entry point for the application."""
     try:
-        app = DocumentChatApp()
+        backend_url = os.getenv("BACKEND_URL")
+        app = DocumentChatApp(backend_url=backend_url)
         app.run()
     except Exception as e:
         logger.exception("Application failed to start")

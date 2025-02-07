@@ -33,7 +33,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-
 # Initialize Sentry for error tracking
 def init_sentry(settings: Settings):
     if settings.sentry_dsn:

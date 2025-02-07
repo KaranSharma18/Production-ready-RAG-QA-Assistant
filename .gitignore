@@ -6,4 +6,7 @@ __pycache__/
 *.pyd
 frontend/app.log
 backend/logs/
+backend/testing.py
 project_documents/*
+fenv/
+logs/

@@ -11,7 +11,7 @@ workers: 1
 log_level: "INFO"
 
 # Redis Settings
-redis_host: "localhost"
+redis_host: "redis"
 redis_port: 6379
 redis_password:
 redis_db: 0
@@ -25,7 +25,8 @@ pinecone_index_name: "document-index1"
 embedding_dimension: 1024
 
 # LLM Settings
-llm_model_name: "deepseek-r1:1.5b"
+# llm_model_name: "deepseek-r1:1.5b"
+llm_model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 llm_history_limit: 10
 llm_max_context_length: 97304
 llm_system_prompt_tokens: 1000
@@ -55,4 +56,4 @@ enable_metrics: true
 metrics_port: 9090
 
 # Backend
-backend_url: "http://localhost:8000"
+backend_url: "http://backend:8000"

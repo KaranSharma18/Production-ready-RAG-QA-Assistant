@@ -10,16 +10,18 @@ load_dotenv()
 
 # Get Pinecone API key & index name from environment variables
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "document-index1")
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
+PINECONE_HOST_NAME = os.getenv("PINECONE_HOST_NAME")
 
 # Load the open-source embedding model (1536-D)
 embedding_model = SentenceTransformer("BAAI/bge-large-en-v1.5")
 
 # Initialize Pinecone client
+# pc = Pinecone(api_key=PINECONE_API_KEY, host=PINECONE_HOST_NAME)
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
 # Connect to an existing index
-index = pc.Index(PINECONE_INDEX_NAME)
+index = pc.Index(PINECONE_INDEX_NAME, host=PINECONE_HOST_NAME)
 
 # Tokenizer for chunking
 tokenizer = tiktoken.get_encoding("cl100k_base")

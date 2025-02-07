@@ -1,10 +1,32 @@
+import os
 import redis
 import json
 import threading
 from vector_store import delete_session_embeddings
+from logger_config import logger
 
-# Initialize Redis
-redis_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+# Get Redis connection details from environment variables with defaults
+REDIS_HOST = os.getenv('REDIS_HOST', 'redis')  # Uses 'redis' as default for Docker
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_DB = int(os.getenv('REDIS_DB', 0))
+
+try:
+    # Initialize Redis with connection retry logic
+    redis_client = redis.Redis(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
+        db=REDIS_DB,
+        decode_responses=True,
+        socket_timeout=5,  # Socket timeout
+        retry_on_timeout=True,  # Retry on timeout
+        max_connections=10  # Connection pool size
+    )
+    # Test the connection
+    redis_client.ping()
+    logger.info(f"Successfully connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
+except redis.ConnectionError as e:
+    logger.error(f"Failed to connect to Redis: {str(e)}")
+    raise
 
 def save_session(session_id, files):
     """Save session details (file names) in Redis with a 30-minute TTL."""

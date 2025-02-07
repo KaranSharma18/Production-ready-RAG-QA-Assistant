@@ -70,7 +70,7 @@ class Settings(BaseSettings):
 
     # Redis Settings
     redis_host: str = Field(
-        default="localhost",
+        default="redis",
         description="Redis host"
     )
     redis_port: int = Field(
@@ -194,7 +194,7 @@ class Settings(BaseSettings):
         description="Timeout for embedding generation in seconds"
     )
     llm_response_timeout: int = Field(
-        default=120,
+        default=1000,
         description="Timeout for LLM response in seconds"
     )
     context_retrieval_timeout: int = Field(

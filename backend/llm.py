@@ -2,13 +2,15 @@ import os
 from typing import List, Dict, Optional, Union
 import json
 from dataclasses import dataclass
-import ollama
+from transformers import AutoModelForCausalLM, AutoTokenizer
 import asyncio
 from tenacity import retry, stop_after_attempt, wait_exponential, AsyncRetrying
 from contextlib import asynccontextmanager
 from logger_config import logger
 from prompt_manager import PromptManager
 from config import get_settings, Settings
+import torch
+import re
 
 class LLMError(Exception):
     """Base exception class for LLM-related errors"""
@@ -68,23 +70,42 @@ class LLMService:
         self.config = get_settings()
         self.prompt_manager = PromptManager(prompt_dir)
         self.prompt_builder = PromptBuilder(self.config, self.prompt_manager)
+        logger.info("stuck1")
         self._semaphore = asyncio.Semaphore(self.config.llm_concurrent_requests)
+        logger.info("stuck2")
+
+        # Initialize model and tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(self.config.llm_model_name)
+        logger.info("stuck3")
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.config.llm_model_name,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+        )
+        logger.info("stuck4")
+        
+        if torch.cuda.is_available():
+            self.model = self.model.cuda()
+        logger.info("stuck5")
 
     async def _call_llm(self, prompt: str) -> str:
         """Make the actual LLM API call with retry logic"""
         try:
-            # Use semaphore to limit concurrent requests
             async with self._semaphore:
-                response = await asyncio.to_thread(
-                    ollama.chat,
-                    model=self.config.llm_model_name,
-                    messages=[{
-                        "role": "system",
-                        "content": prompt,
-                        "llm_temperature": self.config.llm_temperature
-                    }]
+                inputs = self.tokenizer(prompt, return_tensors="pt")
+                if torch.cuda.is_available():
+                    inputs = {k: v.cuda() for k, v in inputs.items()}
+                
+                outputs = await asyncio.to_thread(
+                    self.model.generate,
+                    **inputs,
+                    max_new_tokens=self.config.llm_max_response_tokens,
+                    temperature=self.config.llm_temperature,
+                    do_sample=True
                 )
-                return response["message"]["content"]
+
+                response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                response = await self.remove_think_tags(response)
+                return response
         except Exception as e:
             logger.error(f"Error calling LLM: {e}")
             raise LLMError(f"Failed to generate response: {str(e)}")
@@ -140,6 +161,25 @@ class LLMService:
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             raise LLMError(f"Failed to generate response: {str(e)}")
+    
+    async def remove_think_tags(self, text):
+        think_tags = list(re.finditer(r"<think>", text))
+        end_think_tags = list(re.finditer(r"</think>", text))
+
+        if not think_tags and not end_think_tags:  # No tags at all
+            return text.strip()  # Strip whitespace
+
+        if not think_tags and end_think_tags: # only closing tag is present
+            first_end_think_tag_pos = end_think_tags[0].start()
+            return text[first_end_think_tag_pos + len("</think>"):].strip() # Strip whitespace
+
+        if not end_think_tags: # only one opening tag is present
+            last_think_tag_pos = think_tags[-1].start()
+            return text[last_think_tag_pos + len("<think>"):].strip() # Strip whitespace
+
+        if think_tags and end_think_tags: #both tags are present
+            last_end_think_tag_pos = end_think_tags[-1].start()
+            return text[last_end_think_tag_pos + len("</think>"):].strip() # Strip whitespace
 
 # Async context manager for LLM service
 @asynccontextmanager
