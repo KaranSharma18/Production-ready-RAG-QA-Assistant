@@ -6,10 +6,16 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Redis Configuration
       - REDIS_HOST=${REDIS_HOST}
+      # Pinecone Configuration
       - PINECONE_API_KEY=${PINECONE_API_KEY}
       - PINECONE_HOST_NAME=${PINECONE_HOST_NAME}
       - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
+      # HuggingFace Configuration
+      - HF_MODEL_NAME=${HF_MODEL_NAME:-deepseek-ai/deepseek-coder-1.3b-instruct}
+      - HF_HOME=/root/.cache/huggingface
+      - TORCH_HOME=/root/.cache/torch
     depends_on:
       - redis
     networks:
@@ -17,6 +23,13 @@ services:
     volumes:
       - ./backend:/app
       - ./logs:/app/logs
+      - huggingface_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://0.0.0.0:8000/health" ]
@@ -62,3 +75,4 @@ networks:
 
 volumes:
   redis-data:
+  huggingface_cache:

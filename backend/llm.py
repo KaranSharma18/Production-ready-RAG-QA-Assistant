@@ -70,22 +70,21 @@ class LLMService:
         self.config = get_settings()
         self.prompt_manager = PromptManager(prompt_dir)
         self.prompt_builder = PromptBuilder(self.config, self.prompt_manager)
-        logger.info("stuck1")
         self._semaphore = asyncio.Semaphore(self.config.llm_concurrent_requests)
-        logger.info("stuck2")
 
         # Initialize model and tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.llm_model_name)
-        logger.info("stuck3")
+        logger.info("LLM Tokenizer loaded")
         self.model = AutoModelForCausalLM.from_pretrained(
             self.config.llm_model_name,
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            trust_remote_code=True,
+            use_cache=True
         )
-        logger.info("stuck4")
+        logger.info("LLM Model Loaded")
         
         if torch.cuda.is_available():
             self.model = self.model.cuda()
-        logger.info("stuck5")
 
     async def _call_llm(self, prompt: str) -> str:
         """Make the actual LLM API call with retry logic"""
