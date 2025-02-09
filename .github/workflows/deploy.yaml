@@ -2,7 +2,6 @@ name: Deploy to EKS
 on:
   push:
     branches: [ "main" ]
-
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -22,17 +21,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Add this step to install kubectl
       - name: Install kubectl
         run: |
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
 
-      # Update kubeconfig with explicit role-arn
-      - name: Update kubeconfig
+      - name: Configure kubectl
         run: |
-          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }} --role-arn arn:aws:iam::533267375935:role/eksctl-my-eks-cluster-cluster-ServiceRole-IDaJIBRRE9ny
+          aws eks get-token --cluster-name ${{ env.EKS_CLUSTER }} > token.txt
+          aws eks update-kubeconfig \
+            --name ${{ env.EKS_CLUSTER }} \
+            --region ${{ env.AWS_REGION }} \
+            --role-arn arn:aws:iam::533267375935:role/eksctl-my-eks-cluster-cluster-ServiceRole-IDaJIBRRE9ny
+          
+          # Verify kubectl configuration
+          kubectl config current-context
+          kubectl cluster-info
 
       - name: Replace AWS Account ID in manifests
         run: |
@@ -40,17 +45,18 @@ jobs:
 
       - name: Deploy to EKS
         run: |
-          # First apply Redis and storage components with --validate=false for initial deployment
+          # First verify cluster access
+          kubectl get nodes
+          
+          # Then proceed with deployments
           kubectl apply -f k8s/redis/ebs-sc.yaml --validate=false
           kubectl apply -f k8s/redis/redis-pvc.yaml --validate=false
           kubectl apply -f k8s/redis/redis-deployment.yaml --validate=false
           kubectl apply -f k8s/redis/redis-service.yaml --validate=false
           
-          # Then deploy backend and frontend
           kubectl apply -f k8s/backend/ --validate=false
           kubectl apply -f k8s/frontend/ --validate=false
           
-          # Finally apply ingress
           kubectl apply -f k8s/ingress/frontend-ingress.yaml --validate=false
           
           # Verify deployments
