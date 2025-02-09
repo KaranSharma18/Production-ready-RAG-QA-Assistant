@@ -32,7 +32,7 @@ jobs:
       # Update kubeconfig with explicit role-arn
       - name: Update kubeconfig
         run: |
-          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }} --role-arn arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/eksctl-my-eks-cluster-cluster-ServiceRole-IDaJIBRRE9ny
+          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }} --role-arn arn:aws:iam::533267375935:role/eksctl-my-eks-cluster-cluster-ServiceRole-IDaJIBRRE9ny
 
       - name: Replace AWS Account ID in manifests
         run: |
