@@ -243,4 +243,5 @@ Contributions, issues, and feature requests are welcome!
 
 ---
 
+mail - karansharma.professional@gmail.com
 Feel free to reach out via [email or other channels](mailto:karansharma.professional@gmail.com) if you have any questions or would like to collaborate. Happy building!
