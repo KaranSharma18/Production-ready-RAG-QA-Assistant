@@ -10,11 +10,6 @@ This repository showcases an **end-to-end** Retrieval-Augmented Generation (RAG)
 
 While the RAG technique itself is basic here, the overarching **design** and **deployment architecture** can be used in real-world scenarios where high availability, fault tolerance, and horizontal scalability are critical. If you’re looking to learn how to **deploy** a RAG pipeline—from code to container to Kubernetes—this repository is for you.
 
-### Who Should Use This Repository?
-- **Developers & Data Scientists** wanting to integrate an AI-powered question-answering system into a scalable web service.  
-- **DevOps Engineers** or cloud enthusiasts interested in CI/CD, container orchestration, and production-grade deployments.  
-- **Students & Researchers** who want hands-on experience with end-to-end RAG pipeline architectures, from ephemeral session management to scalable vector storage.
-
 ---
 
 ## Key Features
