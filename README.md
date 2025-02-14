@@ -52,7 +52,7 @@ While the RAG technique itself is basic here, the overarching **design** and **d
   - [FastAPI](https://fastapi.tiangolo.com/) – High-performance Python framework for handling requests and background tasks.  
   - [Redis](https://redis.io/) – In-memory store for ephemeral session data.  
   - [Pinecone](https://www.pinecone.io/) – Vector database for embeddings and semantic search.  
-  - **LLM Inference** (Deepseek via Ollama/Hugging Face) – Basic language model inference for generating responses.  
+  - **LLM Inference** (Deepseek via Ollama/Hugging Face) – Basic language model inference for generating responses. (Should use Vllm-production-stack or Ray-serve)  
   - [PyPDF2](https://pypi.org/project/PyPDF2/) & [python-docx](https://pypi.org/project/python-docx/) – Document loaders for PDF and DOCX.
 
 - **Infrastructure & Deployment**:  
