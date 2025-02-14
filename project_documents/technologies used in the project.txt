@@ -10,7 +10,7 @@ Backend
 FastAPI (for handling requests, processing documents)
 Redis (for ephemeral session management)
 Pinecone (for storing embeddings)
-LLaMA (via Ollama) (for LLM inference)
+Deepseek (via Ollama/huggingface) (Should use vllm or ray-serve)
 Ray Serve (for scalable inference)
 PyPDF2 & python-docx (for document processing)
 Infrastructure & Scalability
