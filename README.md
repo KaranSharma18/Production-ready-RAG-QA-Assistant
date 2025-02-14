@@ -241,8 +241,6 @@ Contributions, issues, and feature requests are welcome!
 - **GitHub**: (https://github.com/KaranSharma18)  
 - **LinkedIn**: (https://www.linkedin.com/in/karansharma18/)
 
-Thank you to all open-source libraries and tools used in this project, particularly **FastAPI**, **Streamlit**, **Redis**, **Pinecone**, and the **Kubernetes** community for making scalable deployments more accessible than ever.
-
 ---
 
 Feel free to reach out via [email or other channels](mailto:karansharma.professional@gmail.com) if you have any questions or would like to collaborate. Happy building!
